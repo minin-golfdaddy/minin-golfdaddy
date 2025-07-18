@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Support</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            height: 100vh;
+            width: 100vw;
+            background: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #d32f2f;
+            font-size: 16px;
+            display: none;
+        }
+        
+        .cancel-button {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: transparent;
+            border: 1px solid #ccc;
+            color: #666;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .cancel-button:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+        
+        .cancel-button:active {
+            background: #eee;
+        }
+        
+        .debug-section {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            max-height: 30vh;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            font-size: 12px;
+            z-index: 9999;
+        }
+        
+        .debug-section h3 {
+            color: #007bff;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 11px;
+        }
+        
+        .param-table th,
+        .param-table td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+        
+        .param-table th {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        
+        .param-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .code-block {
+            background-color: #f1f3f4;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        
+        .empty-value {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        /* Hide debug section after Intercom loads */
+        .intercom-loaded .debug-section {
+            display: none;
+        }
+        
+        .intercom-loaded .loading {
+            display: none;
+        }
+        
+        .intercom-loaded .cancel-button {
+            display: none;
+        }
+        
+        /* Error state styles */
+        .error-state .loading {
+            display: none;
+        }
+        
+        .error-state .error-message {
+            display: block;
+        }
+        
+        .error-state .cancel-button {
+            display: block;
+            top: 65%; /* Move button down a bit when error is shown */
+        }
+        
+        /* Ensure Intercom takes full screen on mobile */
+        @media (max-width: 768px) {
+            .intercom-messenger-frame {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 10000 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="loading" id="loading">Loading support chat...</div>
+        <div class="error-message" id="error-message">Something might have went wrong.<br>Please try again later.</div>
+        <button type="button" class="cancel-button" onClick="closeBrowser()">Cancel</button>
+        <!-- <div class="debug-section" id="debug-section">
+            <h3>🔍 Debug Information</h3>
+            <p><strong>Current URL:</strong> <span id="current-url"></span></p>
+            <p><strong>Query String:</strong> <span id="query-string"></span></p>
+            
+            <h4>URL Parameters:</h4>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="params-table">
+                </tbody>
+            </table>
+            
+            <h4>Intercom Settings:</h4>
+            <div class="code-block" id="intercom-settings"></div>
+        </div> -->
+    </div>
+
+    <script>
+        function getParameterByName(name) {
+            name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+            var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
+            var results = regex.exec(location.search);
+            return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+        }
+
+        // Alternative modern approach using URLSearchParams
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name) || "";
+        }
+
+        // Get app_id from URL parameters or use default
+        var appId = getParameterByName('app_id') || getUrlParameter('app_id') || "FALLBACK_ID";
+        
+        // Now define Intercom settings using the function
+        window.intercomSettings = {
+            api_base: "https://api-iam.intercom.io",
+            app_id: appId,
+            user_id: getParameterByName('user_id') || getUrlParameter('user_id'),
+            name: getParameterByName('user_name') || getUrlParameter('user_name'),
+            email: getParameterByName('user_email') || getUrlParameter('user_email'),
+            phone: getParameterByName('user_phone') || getUrlParameter('user_phone'),
+            created_at: parseInt(getParameterByName('created_at') || getUrlParameter('created_at') || "0"),
+            hide_default_launcher: true,
+        };
+
+        // Debug log to check what parameters were received
+        console.log('Intercom Settings:', window.intercomSettings);
+        console.log('Current URL:', window.location.href);
+        console.log('URL Parameters:', window.location.search);
+
+        // Display debug information on the page (only if elements exist)
+        function displayDebugInfo() {
+            try {
+                // Only run if debug elements exist
+                const currentUrlElement = document.getElementById('current-url');
+                const queryStringElement = document.getElementById('query-string');
+                const paramsTable = document.getElementById('params-table');
+                const intercomSettingsElement = document.getElementById('intercom-settings');
+                
+                if (!currentUrlElement || !queryStringElement || !paramsTable || !intercomSettingsElement) {
+                    console.log('Debug elements not found (likely commented out)');
+                    return;
+                }
+                
+                // Display current URL
+                currentUrlElement.textContent = window.location.href;
+                
+                // Display query string
+                const queryString = window.location.search || '(none)';
+                queryStringElement.textContent = queryString;
+                
+                // Display all URL parameters in a table
+                const urlParams = new URLSearchParams(window.location.search);
+                
+                if (urlParams.toString()) {
+                    for (const [key, value] of urlParams.entries()) {
+                        const row = paramsTable.insertRow();
+                        const keyCell = row.insertCell(0);
+                        const valueCell = row.insertCell(1);
+                        keyCell.textContent = key;
+                        valueCell.textContent = value || '(empty)';
+                        if (!value) {
+                            valueCell.classList.add('empty-value');
+                        }
+                    }
+                } else {
+                    const row = paramsTable.insertRow();
+                    const cell = row.insertCell(0);
+                    cell.colSpan = 2;
+                    cell.textContent = 'No parameters found';
+                    cell.classList.add('empty-value');
+                }
+                
+                // Display Intercom settings
+                intercomSettingsElement.textContent = JSON.stringify(window.intercomSettings, null, 2);
+            } catch (error) {
+                console.log('Error in displayDebugInfo:', error);
+                // Don't let debug errors break the page
+            }
+        }
+
+        // Function to automatically open Intercom chat
+        function openIntercomChat() {
+            if (window.Intercom) {
+                try {
+                    console.log('Opening Intercom chat...');
+                    window.Intercom('show');
+                    
+                    // Add class to hide debug info and loading
+                    document.body.classList.add('intercom-loaded');
+                    
+                    // Clear the error timeout since Intercom loaded successfully
+                    clearLoadingTimeout();
+
+                    setupIntercomListeners();
+                } catch (error) {
+                    console.error('Error opening Intercom chat:', error);
+                    showErrorState();
+                    return;
+                }
+                
+                // For mobile, ensure full screen
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => {
+                        const messengerFrame = document.querySelector('.intercom-messenger-frame');
+                        if (messengerFrame) {
+                            messengerFrame.style.position = 'fixed';
+                            messengerFrame.style.top = '0';
+                            messengerFrame.style.left = '0';
+                            messengerFrame.style.width = '100vw';
+                            messengerFrame.style.height = '100vh';
+                            messengerFrame.style.zIndex = '10000';
+                        }
+                    }, 100);
+                }
+            } else {
+                console.log('Intercom not ready yet, retrying...');
+                setTimeout(openIntercomChat, 100);
+            }
+        }
+
+        // Set up Intercom event listeners
+        function setupIntercomListeners() {
+            if (window.Intercom) {
+                // Listen for when the messenger is hidden/closed
+                window.Intercom('onHide', function() {
+                    console.log('Intercom messenger closed');
+                    closeBrowser();
+                });
+                
+                // Listen for when the messenger is shown/opened
+                window.Intercom('onShow', function() {
+                    console.log('Intercom messenger opened');
+                });
+                
+                // Listen for when the messenger is minimized
+                window.Intercom('onUnreadCountChanged', function(unreadCount) {
+                    console.log('Unread count changed:', unreadCount);
+                });
+            }
+        }
+
+        function closeBrowser() {
+            sendMessageToUnity("intercomClosed");
+        }
+
+        var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+        function isIOS() {
+          let isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+          return isIOS
+        }
+
+        function isAndroid() {
+            return (/android/i.test(userAgent));
+        }
+
+        function sendMessageToUnity(message) {
+            console.log('intercom check isIOS', isIOS());
+            console.log('intercom check isAndroid', isAndroid());
+            if (isIOS()) {
+                try {
+                    webkit.messageHandlers.UnityInAppBrowser.postMessage(message);
+                } catch(err) {
+                    console.log('Can not reach native code');
+                }
+            } else if (isAndroid()){
+                console.log('intercom send message to unity: ', message);
+                UnityInAppBrowser.sendMessageFromJS(message);
+            }
+        }
+
+        // Show error state if Intercom fails to load
+        function showErrorState() {
+            console.log('Intercom failed to load, showing error state');
+            document.body.classList.add('error-state');
+        }
+
+        // Set up timeout to detect if Intercom doesn't load
+        var intercomLoadTimeout = setTimeout(function() {
+            if (!document.body.classList.contains('intercom-loaded')) {
+                showErrorState();
+            }
+        }, 10000); // 10 second timeout (reduced for faster error detection)
+        
+        // Also listen for any JavaScript errors that might prevent loading
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript error detected:', e.error);
+            if (e.error && e.error.message && e.error.message.includes('Intercom')) {
+                showErrorState();
+            }
+        });
+
+        // Clear timeout when Intercom loads successfully
+        function clearLoadingTimeout() {
+            if (intercomLoadTimeout) {
+                clearTimeout(intercomLoadTimeout);
+                intercomLoadTimeout = null;
+            }
+        }
+
+        // Call debug function when page loads
+        window.addEventListener('load', displayDebugInfo);
+
+        // Check for obvious App ID issues and trigger error immediately
+        if (appId === "FALLBACK_ID" || !appId || appId.trim() === "") {
+            console.warn('Invalid or missing App ID detected');
+            setTimeout(showErrorState, 2000); // Show error after 2 seconds
+        }
+
+        // Try to open Intercom chat after a short delay
+        setTimeout(openIntercomChat, 500);
+    </script>
+
+    <!-- Intercom Widget Script -->
+    <script>
+        (function(){
+            var w=window;
+            var ic=w.Intercom;
+            if(typeof ic==="function"){
+                ic('reattach_activator');
+                ic('update',w.intercomSettings);
+                // If Intercom is already loaded, open it immediately
+                setTimeout(() => {
+                    ic('show');
+                    document.body.classList.add('intercom-loaded');
+                    clearLoadingTimeout();
+                }, 100);
+            } else {
+                var d=document;
+                var i=function(){i.c(arguments);};
+                i.q=[];
+                i.c=function(args){i.q.push(args);};
+                w.Intercom=i;
+                var l=function(){
+                    var s=d.createElement('script');
+                    s.type='text/javascript';
+                    s.async=true;
+                    s.src='https://widget.intercom.io/widget/' + appId;
+                    var x=d.getElementsByTagName('script')[0];
+                    x.parentNode.insertBefore(s,x);
+                    
+                    // Listen for when the script loads
+                    s.onload = function() {
+                        console.log('Intercom script loaded');
+                        setTimeout(openIntercomChat, 200);
+                    };
+                    
+                    // Listen for script loading errors
+                    s.onerror = function() {
+                        console.error('Failed to load Intercom script');
+                        showErrorState();
+                    };
+                };
+                if(w.attachEvent){
+                    w.attachEvent('onload',l);
+                } else {
+                    w.addEventListener('load',l,false);
+                }
+            }
+        })();
+    </script>
+</body>
+</html>
